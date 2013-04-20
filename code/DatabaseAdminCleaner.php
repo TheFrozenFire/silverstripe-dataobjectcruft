@@ -142,7 +142,6 @@ class DevelopmentAdminCleaner extends Extension {
 	);
 	
 	public function scrub($request) {
-		$da = DatabaseAdmin::create();
-		return $da->handleRequest($request, $this->owner->model);
+		return $this->owner->redirect("DatabaseAdmin/scrub");
 	}
 }
