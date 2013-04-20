@@ -44,7 +44,7 @@ class DataObjectCruft extends DataExtension {
 					(($this->owner->class == $childClass) ? "ChildID" : "{$childClass}ID") => "Int",
 				);
 				if(isset($extras[$relationship])) {
-					$manymanyFields = array_merge($manymanyFields, $extras[$relationship]);
+					$this->manifest_manyManyFields["{$this->class}_$relationship"] = array_merge($this->manifest_manyManyFields["{$this->class}_$relationship"], $extras[$relationship]);
 				}
 
 				// Build index list
