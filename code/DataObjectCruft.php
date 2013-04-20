@@ -80,7 +80,7 @@ class DataObjectCruft extends DataExtension {
 			$tableList = DB::getConn()->tableList();
 		}
 		
-		return isset($tableList[$this->owner->class]);
+		return isset($tableList[strtolower($this->owner->class)]);
 	}
 	
 	public function getFields_MySQLDatabase($conn) {
