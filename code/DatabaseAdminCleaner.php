@@ -12,11 +12,22 @@ class DatabaseAdminCleaner extends Extension {
 			$renderer->writeInfo("Environment Builder", Director::absoluteBaseURL());
 			echo "<div class=\"scrub\">";
 		}
+		
+		$cruft = array();
+		
+		$tableList = DB::getConn()->tableList();
 	
 		$dataClasses = ClassInfo::subclassesFor('DataObject');
 		array_shift($dataClasses);
 		
-		$cruft = array();
+		foreach($tableList as $table) {
+			if(!in_array($table, $dataClasses))
+				$cruftTables[$table] = array(
+					"DataClass" => $table,
+					"WholeTable" => true
+				);
+		}
+		
 		foreach($dataClasses as $dataClass) {
 			if(class_exists($dataClass)) {
 				$SNG = singleton($dataClass);
@@ -25,9 +36,21 @@ class DatabaseAdminCleaner extends Extension {
 					
 					if(!empty($classCruft))
 						$cruft[] = $classCruft;
+					
+					foreach($SNG->many_many() as $relationship => $childClass) {
+						unset($cruftTables["{$dataClass}_{$relationship}"]);
+					}
+				}
+				
+				if($SNG->hasExtension("Versioned")) {
+					unset($cruftTables["{$dataClass}_versions"]);
+					unset($cruftTables["{$dataClass}_Live"]);
+					unset($cruftTables["{$dataClass}_Stage"]);
 				}
 			}
 		}
+		
+		$cruft = array_merge(array_values($cruftTables), $cruft);
 		
 		$form = $this->FormDeleteCruft();
 		$form->setFormAction("/DatabaseAdmin/FormDeleteCruft");
@@ -36,6 +59,11 @@ class DatabaseAdminCleaner extends Extension {
 			$group = new CompositeField(array(
 				new HeaderField($classCruft["DataClass"])
 			));
+			if(!empty($classCruft["WholeTable"]) && $classCruft["WholeTable"]) {
+				$group->push(new CompositeField(array(
+					new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][WholeTable]", "Whole {$classCruft["DataClass"]} Table")
+				)));
+			}
 			if(!empty($classCruft["Fields"])) {
 				$fieldsGroup = new CompositeField(array(
 					new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][Fields]", "Fields", 3)
@@ -88,6 +116,10 @@ class DatabaseAdminCleaner extends Extension {
 		
 		if(!empty($data["DeleteSpec"]))
 			foreach($data["DeleteSpec"] as $table => $spec) {
+				if(!empty($spec["WholeTable"]) && $spec["WholeTable"] === "1") {
+					$this->deleteTable($table);
+					continue;
+				}
 				if(!empty($spec["Fields"]))
 					foreach($spec["Fields"] as $fieldName => $delete) {
 						if($delete !== "1")
@@ -108,6 +140,18 @@ class DatabaseAdminCleaner extends Extension {
 		if(!Director::is_cli()) {
 			echo "</div>";
 			$renderer->writeFooter();
+		}
+	}
+	
+	public function deleteTable($table) {
+		Debug::message("Deleting Table: {$table}");
+		
+		$conn = DB::getConn();
+		
+		switch(true) {
+			case $conn instanceof MySQLDatabase:
+				$conn->query("DROP TABLE `{$table}`");
+				break;
 		}
 	}
 	
