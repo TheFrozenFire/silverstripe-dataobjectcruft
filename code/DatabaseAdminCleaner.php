@@ -33,20 +33,29 @@ class DatabaseAdminCleaner extends Extension {
 		$form->setFormAction("/DatabaseAdmin/FormDeleteCruft");
 		$fields = $form->Fields();
 		foreach($cruft as $classCruft) {
-			$fields->push(new HeaderField($classCruft["DataClass"]));
+			$group = new CompositeField(array(
+				new HeaderField($classCruft["DataClass"])
+			));
 			if(!empty($classCruft["Fields"])) {
-				$fields->push(new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][Fields]", "Fields", 3));
+				$fieldsGroup = new CompositeField(array(
+					new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][Fields]", "Fields", 3)
+				));
 				foreach($classCruft["Fields"] as $fieldName => $field) {
-					$fields->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][Fields][{$fieldName}]", "{$fieldName} ({$field["Type"]})"));
+					$fieldsGroup->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][Fields][{$fieldName}]", "{$fieldName} ({$field["Type"]})"));
 				}
+				$group->push($fieldsGroup);
 			}
 			
 			if(!empty($classCruft["Indexes"])) {
-				$fields->push(new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][Indexes]", "Indexes", 3));
+				$indexesGroup = new CompositeField(array(
+					new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][Indexes]", "Indexes", 3)
+				));
 				foreach($classCruft["Indexes"] as $indexName => $index) {
-					$fields->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][Indexes][{$indexName}]", "{$indexName} ({$index["Column_name"]})"));
+					$indexesGroup->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][Indexes][{$indexName}]", "{$indexName} ({$index["Column_name"]})"));
 				}
+				$group->push($indexesGroup);
 			}
+			$fields->push($group);
 		}
 		
 		echo $this->owner->renderWith(array("DatabaseAdminCleaner", "ContentController"), array(
