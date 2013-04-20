@@ -74,7 +74,13 @@ class DataObjectCruft extends DataExtension {
 	}
 	
 	public function hasOwnTable() {
-		return !empty($this->manifest_fields);
+		static $tableList;
+		
+		if(empty($tableList)) {
+			$tableList = DB::getConn()->tableList();
+		}
+		
+		return isset($tableList[$this->owner->class]);
 	}
 	
 	public function getFields_MySQLDatabase($conn) {
