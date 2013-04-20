@@ -32,7 +32,7 @@ class DatabaseAdminCleaner extends Extension {
 			if(class_exists($dataClass)) {
 				$SNG = singleton($dataClass);
 				if(!($SNG instanceof TestOnly)) {
-					$classCruft = $SNG->CruftFields();
+					$classCruft = $SNG->Cruft();
 					
 					if(!empty($classCruft))
 						$cruft[] = $classCruft;
@@ -83,6 +83,44 @@ class DatabaseAdminCleaner extends Extension {
 				}
 				$group->push($indexesGroup);
 			}
+			
+			if(!empty($classCruft["ManyManyFields"]) || !empty($classCruft["ManyManyIndexes"])) {
+				$relationships = array_unique(array_merge(
+					array_keys(
+						isset($classCruft["ManyManyFields"])?$classCruft["ManyManyFields"]:array()
+					),
+					array_keys(
+						isset($classCruft["ManyManyIndexes"])?$classCruft["ManyManyIndexes"]:array()
+					)
+				));
+				
+				foreach($relationships as $relationship) {
+					$manyManyGroup = new CompositeField(array(
+						new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][ManyMany][{$relationship}]", "Many-Many: {$relationship}", 4)
+					));
+					
+					if(!empty($classCruft["ManyManyFields"][$relationship])) {
+						$manyManyGroup->push($fieldsGroup = new CompositeField(array(
+							new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][ManyMany][{$relationship}][Fields]", "Fields", 5)
+						)));
+						foreach($classCruft["ManyManyFields"][$relationship] as $fieldName => $field) {
+							$fieldsGroup->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][ManyMany][{$relationship}][Fields][{$fieldName}]", "{$fieldName} ({$field["Type"]})"));
+						}
+					}
+					
+					if(!empty($classCruft["ManyManyIndexes"][$relationship])) {
+						$manyManyGroup->push($fieldsGroup = new CompositeField(array(
+							new HeaderField("DeleteSpec[{$classCruft["DataClass"]}][ManyMany][{$relationship}][Indexes]", "Indexes", 5)
+						)));
+						foreach($classCruft["ManyManyIndexes"][$relationship] as $indexName => $index) {
+							$fieldsGroup->push(new CheckboxField("DeleteSpec[{$classCruft["DataClass"]}][ManyMany][{$relationship}][Indexes][{$indexName}]", "{$indexName} ({$index["Column_name"]})"));
+						}
+					}
+					
+					$group->push($manyManyGroup);
+				}
+			}
+			
 			$fields->push($group);
 		}
 		
@@ -134,6 +172,25 @@ class DatabaseAdminCleaner extends Extension {
 							continue;
 						
 						$this->deleteIndex($table, $indexName);
+					}
+				
+				if(!empty($spec["ManyMany"]))
+					foreach($spec["ManyMany"] as $relationship => $manyManySpec) {
+						if(!empty($manyManySpec["Fields"]))
+							foreach($manyManySpec["Fields"] as $fieldName => $delete) {
+								if($delete !== "1")
+									continue;
+								
+								$this->deleteField("{$table}_{$relationship}", $fieldName);
+							}
+							
+						if(!empty($manyManySpec["Indexes"]))
+							foreach($manyManySpec["Indexes"] as $indexName => $delete) {
+								if($delete !== "1")
+									continue;
+					
+								$this->deleteIndex("{$table}_{$relationship}", $indexName);
+							}
 					}
 			}
 		

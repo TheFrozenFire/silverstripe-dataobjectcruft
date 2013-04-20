@@ -14,7 +14,7 @@ class DataObjectCruft extends DataExtension {
 	public $schema_manyManyFields = array();
 	public $schema_manyManyIndexes = array();
 	
-	public function CruftFields() {
+	public function Cruft() {
 		$this->populateManifestFields();
 		$this->populateSchemaFields();
 		
@@ -23,6 +23,23 @@ class DataObjectCruft extends DataExtension {
 		$cruft["DataClass"] = $this->owner->class;
 		$cruft["Fields"] = array_diff_key($this->schema_fields, $this->manifest_fields);
 		$cruft["Indexes"] = array_diff_key($this->schema_indexes, $this->manifest_indexes);
+		
+		foreach(Config::inst()->get($this->owner->class, 'many_many', Config::UNINHERITED)?:array() as $relationship => $childClass) {
+			$manyManyFieldsDiff = array_diff_key(
+				isset($this->schema_manyManyFields[$relationship])?$this->schema_manyManyFields[$relationship]:array(),
+				isset($this->manifest_manyManyFields[$relationship])?$this->manifest_manyManyFields[$relationship]:array()
+			);
+			if(!empty($manyManyFieldsDiff)) {
+				$cruft["ManyManyFields"][$relationship] = $manyManyFieldsDiff;
+			}
+			$manyManyIndexesDiff = array_diff_key(
+				isset($this->schema_manyManyIndexes[$relationship])?$this->schema_manyManyIndexes[$relationship]:array(),
+				isset($this->manifest_manyManyIndexes[$relationship])?$this->manifest_manyManyIndexes[$relationship]:array()
+			);
+			if(!empty($manyManyIndexesDiff)) {
+				$cruft["ManyManyIndexes"][$relationship] = $manyManyIndexesDiff;
+			}
+		}
 		
 		if(empty($cruft["Fields"]) && empty($cruft["Indexes"]))
 			return null;
@@ -35,20 +52,20 @@ class DataObjectCruft extends DataExtension {
 		$this->manifest_extensions = $this->owner->database_extensions($this->owner->class);
 		$this->manifest_indexes = $this->owner->databaseIndexes();
 		
-		if($manyMany = $this->owner->uninherited('many_many', true)) {
-			$extras = $this->owner->uninherited('many_many_extraFields', true);
+		if($manyMany = Config::inst()->get($this->owner->class, 'many_many', Config::UNINHERITED)) {
+			$extras = Config::inst()->get($this->owner->class, 'many_many_extraFields', Config::UNINHERITED);
 			foreach($manyMany as $relationship => $childClass) {
 				// Build field list
-				$this->manifest_manyManyFields["{$this->class}_$relationship"] = array(
+				$this->manifest_manyManyFields[$relationship] = array(
 					"{$this->owner->class}ID" => "Int",
 					(($this->owner->class == $childClass) ? "ChildID" : "{$childClass}ID") => "Int",
 				);
 				if(isset($extras[$relationship])) {
-					$this->manifest_manyManyFields["{$this->class}_$relationship"] = array_merge($this->manifest_manyManyFields["{$this->class}_$relationship"], $extras[$relationship]);
+					$this->manifest_manyManyFields[$relationship] = array_merge($this->manifest_manyManyFields[$relationship], $extras[$relationship]);
 				}
 
 				// Build index list
-				$this->manifest_manyManyIndexes["{$this->class}_$relationship"] = array(
+				$this->manifest_manyManyIndexes[$relationship] = array(
 					"{$this->owner->class}ID" => true,
 					(($this->owner->class == $childClass) ? "ChildID" : "{$childClass}ID") => true,
 				);
@@ -124,10 +141,51 @@ class DataObjectCruft extends DataExtension {
 	}
 	
 	public function getManyManyFields_MySQLDatabase($conn) {
+		$relationships = array();
+		foreach(Config::inst()->get($this->owner->class, 'many_many', Config::UNINHERITED)?:array() as $relationship => $childClass) {
+			$columns = array();
+			$columnsResult = $conn->query("SHOW COLUMNS FROM `{$this->owner->class}_{$relationship}`");
+			if(!$columnsResult) {
+				$relationships[$relationship] = array();
+				continue;
+			}
+			
+			foreach($columnsResult as $column) {
+				if($column["Field"] === "ID")
+					continue;
+				$fieldName = $column["Field"];
+				unset($column["Field"]);
+				$columns[$fieldName] = $column;
+			}
+			
+			$relationships[$relationship] = $columns;
+		}
 		
+		return $relationships;
 	}
 	
 	public function getManyManyIndexes_MySQLDatabase($conn) {
-
+		$relationships = array();
+		foreach(Config::inst()->get($this->owner->class, 'many_many', Config::UNINHERITED)?:array() as $relationship => $childClass) {
+			$indexes = array();
+			$indexesResult = $conn->query("SHOW INDEX FROM `{$this->owner->class}_{$relationship}`");
+		
+			if(!$indexesResult) {
+				$relationships[$relationship] = array();
+				continue;
+			}
+			
+			foreach($indexesResult as $index) {
+				if($index["Key_name"] === "PRIMARY")
+					continue;
+				$keyName = $index["Key_name"];
+				unset($index["Key_name"]);
+				$indexes[$keyName] = $index;
+			}
+			
+			$relationships[$relationship] = $indexes;
+		}
+		
+		return $relationships;
 	}
 }
