@@ -1,0 +1,16 @@
+{
+    "name": "thefrozenfire/dataobjectcruft",
+    "description": "A tool for finding and removing tables, fields and indexes which are no longer needed in a SilverStripe database",
+    "type": "silverstripe-module",
+    "keywords": ["silverstripe", "dev"],
+    "require": {
+        "silverstripe/framework": "3.*"
+    },
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Justin Martin",
+            "email": "frozenfire@thefrozenfire.com"
+        }
+    ]
+}
